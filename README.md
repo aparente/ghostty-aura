@@ -1,153 +1,94 @@
-# ghostty-radiant
+# ghostty-aura
 
-A Claude Code plugin that dynamically shifts your Ghostty terminal's colors based on what Claude is doing. Each tab maintains independent colors — run multiple Claude sessions side-by-side and each one reflects its own state.
+A theme-agnostic Claude Code plugin that dynamically tints your Ghostty terminal based on what Claude is doing. Works with any Ghostty theme — no bundled colors, no theme switching.
 
 ## How it works
 
 ```
-Claude Code hooks → shell scripts → OSC escape sequences → your Ghostty tab recolors
+Session start → query your current colors via OSC → blend tints at runtime → per-tab isolation
 ```
 
-When Claude starts working, your terminal background subtly shifts to teal. When it needs your input, the background warms to amber. When it finishes, a gold flash fades back to the base theme. Errors snap to coral.
+On session start, the plugin queries your terminal's current background, foreground, and cursor colors. These become the "base" palette. When state changes occur, tint colors are blended into your base using HSL color math — preserving your theme's lightness while shifting hue and saturation.
 
-Each Claude Code session captures its own TTY path at startup. All color changes write OSC sequences to that specific TTY, so only the active session's tab changes — other tabs stay at their own state.
+Each Claude Code session captures its own TTY, so multiple tabs maintain independent color states.
 
 ### States
 
-| State | Trigger | Color | Behavior |
-|-------|---------|-------|----------|
-| **connected** | Session starts | Green tint | Flashes, fades to base after 1.5s |
-| **working** | Tool use | Teal/blue | Animated ping-pong between two shades |
-| **needs_input** | Permission request | Warm amber | Holds until resolved |
-| **completed** | Claude stops | Gold tint | Fades to base after 2s |
-| **error** | Tool error | Coral red | Instant snap |
-| **base** | Idle | Dark blue-gray | Default resting state |
+| State | Trigger | Tint | Behavior |
+|-------|---------|------|----------|
+| **connected** | Session starts | Green | Animated fade, returns to base after 1.5s |
+| **working** | Tool use | Blue | Animated ping-pong |
+| **needs_input** | Permission request | Amber | Instant snap, holds until resolved |
+| **completed** | Claude stops | Gold | Animated fade, returns to base after 2s |
+| **error** | Tool error | Red | Instant snap |
+| **base** | Idle | — | Your original theme colors |
 
 ## Install
 
-### 1. Clone the repo
+### As a Claude Code plugin (recommended)
 
 ```bash
-git clone https://github.com/aparente/ghostty-radiant.git
-cd ghostty-radiant
+git clone https://github.com/aparente/ghostty-aura.git
 ```
 
-### 2. Run the install script
-
-```bash
-./scripts/install.sh
-```
-
-This copies the Ghostty theme to `~/.config/ghostty/themes/radiant` and the color config to `~/.claude/radiant-theme.json`.
-
-### 3. Set the Ghostty theme
-
-Add to your Ghostty config (`~/.config/ghostty/config`):
-
-```
-theme = radiant
-```
-
-### 4. Register hooks with Claude Code
-
-Add to `~/.claude/settings.json` under `"hooks"`:
+Add to `~/.claude/settings.json`:
 
 ```json
 {
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/ghostty-radiant/scripts/session-start-hook.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/ghostty-radiant/scripts/post-tool-hook.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/ghostty-radiant/scripts/permission-hook.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/ghostty-radiant/scripts/stop-hook.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/ghostty-radiant/scripts/session-end-hook.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  }
+  "plugins": ["path/to/ghostty-aura"]
 }
 ```
 
-Replace `/path/to/ghostty-radiant` with the actual clone path.
+The `hooks/hooks.json` registers all hooks automatically via `${CLAUDE_PLUGIN_ROOT}`.
 
-If installed as a Claude Code plugin (via `hooks/hooks.json`), the `${CLAUDE_PLUGIN_ROOT}` variable handles this automatically.
+### First run
+
+On first session start, a default config is created at `~/.claude/aura-config.json`. To customize interactively:
+
+```bash
+cd ghostty-aura
+node lib/setup.js
+```
+
+## Configuration
+
+Edit `~/.claude/aura-config.json`. No absolute colors — only tints and intensity. Actual colors are computed at runtime from your queried base.
+
+```json
+{
+  "states": {
+    "connected":   { "tint": "#4ade80", "intensity": 0.15, "transition": "animate", "auto_to": "base", "auto_ms": 1500 },
+    "working":     { "tint": "#38bdf8", "intensity": 0.2,  "transition": "animate" },
+    "needs_input": { "tint": "#fbbf24", "intensity": 0.25, "transition": "instant" },
+    "completed":   { "tint": "#facc15", "intensity": 0.15, "transition": "animate", "auto_to": "base", "auto_ms": 2000 },
+    "error":       { "tint": "#f87171", "intensity": 0.3,  "transition": "instant" }
+  },
+  "animation": { "steps": 8, "step_ms": 120 }
+}
+```
+
+- **`tint`** — color to blend toward
+- **`intensity`** — 0..1, how far to shift from base
+- **`transition`** — `"animate"` (smooth fade) or `"instant"` (snap)
+- **`auto_to`** / **`auto_ms`** — auto-return to another state after delay
 
 ## Manual testing
 
 ```bash
-# Shift to working state
-./scripts/set-theme-state.sh working
+# Create a fake base file for testing
+echo '{"bg":"#1a1b26","fg":"#c0caf5","cursor":"#c0caf5"}' > /tmp/aura-base-test.json
 
-# Shift to needs_input
-./scripts/set-theme-state.sh needs_input
-
-# Restore original colors
-./scripts/set-theme-state.sh restore
+# Test blending
+node lib/color.js blend "#1a1b26" "#38bdf8" 0.2
 ```
-
-## Customization
-
-Edit `~/.claude/radiant-theme.json` to change colors, transition modes, or timing. Each state supports:
-
-- **`bg`**, **`fg`**, **`cursor`** — hex colors
-- **`transition`** — `"instant"` or `"animate"`
-- **`animation`** — `end_bg`, `steps`, `step_ms` for animated states
-- **`auto_transition`** — `to` state and `after_ms` delay
 
 ## Requirements
 
-- [Ghostty](https://ghostty.org) terminal (supports OSC 10/11/12)
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with hooks support
+- [Ghostty](https://ghostty.org) terminal (OSC 10/11/12 support)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with hooks/plugins support
+- Node.js >= 18
 - `jq` for JSON parsing
-- `bc` for transition timing math
 
 ## How per-tab isolation works
 
-When `SessionStart` fires, the hook captures the session's TTY path (e.g., `/dev/ttys003`) and writes it to `/tmp/radiant-tty-{session_id}`. Subsequent hooks look up this file to target the correct TTY. Since each Ghostty tab has its own PTY, writing OSC sequences to a specific TTY only affects that tab.
+When `SessionStart` fires, the hook captures the session's TTY path (e.g., `/dev/ttys003`) and saves it to `/tmp/aura-tty-{session_id}`. It also queries the terminal's current colors and saves them to `/tmp/aura-base-{session_id}.json`. Subsequent hooks look up these files to target the correct TTY with the correct base palette.

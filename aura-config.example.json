@@ -1,0 +1,10 @@
+{
+  "states": {
+    "connected":   { "tint": "#4ade80", "intensity": 0.15, "transition": "animate", "auto_to": "base", "auto_ms": 1500 },
+    "working":     { "tint": "#38bdf8", "intensity": 0.2,  "transition": "animate" },
+    "needs_input": { "tint": "#fbbf24", "intensity": 0.25, "transition": "instant" },
+    "completed":   { "tint": "#facc15", "intensity": 0.15, "transition": "animate", "auto_to": "base", "auto_ms": 2000 },
+    "error":       { "tint": "#f87171", "intensity": 0.3,  "transition": "instant" }
+  },
+  "animation": { "steps": 8, "step_ms": 120 }
+}

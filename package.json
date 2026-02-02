@@ -1,0 +1,12 @@
+{
+  "name": "ghostty-aura",
+  "version": "2.0.0",
+  "description": "Theme-agnostic ambient terminal coloring for Claude Code sessions in Ghostty",
+  "private": true,
+  "scripts": {
+    "setup": "node lib/setup.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
