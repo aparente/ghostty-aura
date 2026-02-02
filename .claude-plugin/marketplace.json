@@ -1,0 +1,14 @@
+{
+  "name": "ghostty-aura",
+  "owner": {
+    "name": "aparente"
+  },
+  "plugins": [
+    {
+      "name": "ghostty-aura",
+      "source": ".",
+      "description": "Theme-agnostic ambient terminal coloring for Claude Code in Ghostty",
+      "version": "2.0.0"
+    }
+  ]
+}
